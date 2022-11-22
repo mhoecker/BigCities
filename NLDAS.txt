@@ -1,0 +1,6 @@
+Description:
+NLDAS Elevation Datasets
+The 1/8th-degree resolution topographic datasets are based on the GTOPO30 Global 30 Arc Second (~1-km) Elevation Dataset. In particular, average elevation values over the NLDAS domain were arrived at by isolating the relevant subset of data from the ~1-km global dataset, and then averaging up to the 1/8th-degree NLDAS resolution. Slope and aspect values were then derived from this 1/8th-degree data. Maximum, minimum, and standard deviation values, by contrast, were calculated directly from the ~1-km values which lie within each 1/8th-degree NLDAS grid box.
+
+Link
+https://ldas.gsfc.nasa.gov/nldas/elevation
