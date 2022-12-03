@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[16]:
 
 
 import numpy as np
@@ -39,7 +39,7 @@ tiler = Stamen('terrain-background')
 #tiler = QuadtreeTiles()
 
 
-# In[2]:
+# In[3]:
 
 
 ### Function to calculate travel time with a start delay
@@ -207,7 +207,7 @@ def makeRoutes(Cities,w_matrix=None,dr_matrix=None):
 # can be added to a route with the path i->j replaced with i->k->j
 
 
-# In[267]:
+# In[4]:
 
 
 def RemoveRoutes(Cities,dr_matrix=None,w_matrix=None,Routes=None,Routeids=None,verbose=False):
@@ -352,7 +352,7 @@ def remove_route(Routes,
     return weights
 
 
-# In[6]:
+# In[5]:
 
 
 x = np.arange(10,1000,1)
@@ -367,7 +367,7 @@ ax2.set_xticklabels(["%4.0f" % z for z in miles])
 ax2.set_xlim(ax.get_xlim())
 
 
-# In[229]:
+# In[6]:
 
 
 def refiner(x,y,z,upscale=12,kind='linear'):
@@ -408,7 +408,7 @@ estd = renorm(estd)
 #plt.imshow(estd)
 
 
-# In[57]:
+# In[7]:
 
 
 #Load in the city data
@@ -446,7 +446,7 @@ Cities["Pop percentile"] = (np.argsort(Cities["City Pop"].values))/(len(Cities["
 
 
 
-# In[406]:
+# In[8]:
 
 
 ##### Set up a globe with a specific radius
@@ -459,9 +459,9 @@ globe = ccrs.Globe(semimajor_axis=6371000.)
 #    globe=None)
 # Setup a projection for longitude/latitude coordinates
 XYproj = ccrs.PlateCarree()
-
+GCproj = ccrs.Geodetic()
 # Set the extent for the maps
-CONUS_Extent = np.array([-122.0, -69.5, 25.5, 49.25])
+CONUS_Extent = np.array([-123.0, -69.5, 25.25, 49.25])
 #West_Extent = [-122, -105, 31.75, 48.75]
 #Central_Extent = [-101,-88,28.0,45.5]
 #East_Extent = [-90, -74, 25.5, 44.5]
@@ -474,8 +474,8 @@ CONUS_Extent = np.array([-122.0, -69.5, 25.5, 49.25])
 #NE_Extent =       [ -80.0,  -60.0, 37.0, 49.0]
 #SE_Extent =       [ -85.0,  -65.0, 25.0, 37.0]
 Extents = [CONUS_Extent]
-Nx = 4
-Ny = 3
+Nx = 5
+Ny = 5
 dx = np.abs(CONUS_Extent[1]-CONUS_Extent[0])/Nx
 dy = np.abs(CONUS_Extent[3]-CONUS_Extent[2])*1.0/Ny
 print(dx,dy)
@@ -498,29 +498,29 @@ for i in range(Nx):
         Extents.append(extent)
 files = ["CONUS.png",
          "SouthWest.png",
-#         "SCentralWest.png",
+         "SCentralWest.png",
          "CentralWest.png",
-#         "NCentralWest.png",
+         "NCentralWest.png",
          "NorthWest.png",
          "MtSouth.png",
-#         "MtSCentral.png",
-         "MSCentral.png",
-#         "MtNCentral.png",
+         "MtSCentral.png",
+         "MtCentral.png",
+         "MtNCentral.png",
          "MtNorth.png",
-#         "SouthCentral.png",
-#         "SCentral.png",
-#         "Central.png",
-#         "NCentral.png",
-#         "NorthCentral.png",
+         "SouthCentral.png",
+         "SCentral.png",
+         "Central.png",
+         "NCentral.png",
+         "NorthCentral.png",
          "SouthApalachia.png",
-#         "SCentralApalachia.png",
+         "SCentralApalachia.png",
          "CentralApalachia.png",
-#         "NCentralApalachia.png",
+         "NCentralApalachia.png",
          "NorthApalachia.png",
          "SouthEast.png",
-#         "SCentralEast.png",
+         "SCentralEast.png",
          "CentralEast.png",
-#         "NCentralEast.png",
+         "NCentralEast.png",
          "NorthEast.png",
         ]
 for extent,file in zip(Extents,files):
@@ -542,7 +542,7 @@ proj = ccrs.AlbersEqualArea(
 #    print(proj)
 
 
-# In[407]:
+# In[9]:
 
 
 plt.close('all')
@@ -570,7 +570,7 @@ for i in range(N):
 #plt.close(fig)
 
 
-# In[60]:
+# In[10]:
 
 
 ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
@@ -583,7 +583,7 @@ ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
 #                     ALL_Routes[5][i])
 
 
-# In[275]:
+# In[11]:
 
 
 Routeids =[]
@@ -756,7 +756,7 @@ print(w_matrix_ALL.shape,len(ALL_Routes[0]))
 print(Dry_weights.shape,len(Dry_Routes[0]))
 
 
-# In[298]:
+# In[12]:
 
 
 cos0 = np.cos(np.pi*0.0/1.0)
@@ -774,7 +774,7 @@ print(Trimmed_weights.shape,len(Trimmed_Routes[0]))
 print(cos0,dr0)
 
 
-# In[299]:
+# In[13]:
 
 
 #print(Trimmed_Routes[0])
@@ -786,12 +786,12 @@ for q in np.arange(0,1+dq,dq):
         str(q*100)+"%")
 
 
-# In[390]:
+# In[25]:
 
 
 #weightlimit = np.quantile(Trimmed_Routes[0],.000)
 weightlimit = 0.0
-weightlimit = 53500.0
+weightlimit = 50000.0
 weights = Trimmed_weights*1
 #weights[Trimmed_weights < weightlimit] = 0
 Routeids = []
@@ -817,14 +817,15 @@ print(len(Trimmed_Routes[0]),"-",len(Routeids))
 print(weights.shape,len(Routes[0]))
 
 
-# In[442]:
+# In[26]:
 
 
 plt.close('all')
 Connections = np.sum(np.sign(weights), axis = 1)
 maxweight = np.max(Routes[:][0])
 minweight = np.min(Routes[:][0])
-cmap = cm.get_cmap('winter_r') #routes
+cmap = cm.get_cmap('tab20b') #routes
+gamma = 1/2.5
 smap = cm.get_cmap('autumn') #cities
 zmap = cm.get_cmap('binary') #Elevation
 ymap = cm.get_cmap('YlGn_r') # Alt Elevation
@@ -909,30 +910,35 @@ for route in pd.DataFrame(Routes).T.values:
             k = route[3]
             l = route[4]
             locs = np.vstack((Cities.iloc[k][["Lon","Lat"]].values,Cities.iloc[l][["Lon","Lat"]].values))
-            lw_max = 9
+            lw = 6
             # Draw the lines on all the subplots
-            color_value = np.log(weight/minweight)/np.log(maxweight/minweight)
-            #color_value = (weight)/(maxweight)
-            for lw,alpha in zip( [lw_max/3,lw_max],[1,.5]):
-                ax.plot(
+#            color_value = np.log(weight/minweight)/np.log(maxweight/minweight)
+#            color_value = (weight)/(maxweight)
+            color_value = (weight)/(maxweight)
+            color_value = np.power(color_value,gamma)
+            ax.plot(
                     locs[:,0],
                     locs[:,1],
                     c=cmap(color_value),
                     lw = lw,
                     solid_capstyle='round',
                     zorder=3,
-                    alpha = alpha,
-                    transform=XYproj)
+#                    alpha = alpha,
+                    transform=GCproj)
 
 cx = [0,.5,1]
-cy = np.arange(minweight,maxweight,16)
+cy = np.arange(0,maxweight,64)
 cxx,cyy = np.meshgrid(cx,cy)
-czz = np.log(cyy/minweight)/np.log(maxweight/minweight)
-cz = np.log(cy/minweight)/np.log(maxweight/minweight)
+#czz = np.log(cyy/minweight)/np.log(maxweight/minweight)
+#cz = np.log(cy/minweight)/np.log(maxweight/minweight)
+cz = (cy)/(maxweight)
+czz = (cyy)/(maxweight)
+cz = np.power(cz,gamma)
+czz = np.power(czz,gamma)
 cax.contourf(cxx,cyy,czz,cmap=cmap,levels=cz)
-cbarpower = np.floor(np.log(maxweight)/np.log(10))
-cbarmax = np.ceil(maxweight/10**(cbarpower-2))*(10**(cbarpower-2))
-cax.set_ylim(0,cbarmax)
+#cbarpower = np.floor(np.log(maxweight)/np.log(10))
+#cbarmax = np.ceil(maxweight/10**(cbarpower-3))*(10**(cbarpower-3))
+cax.set_ylim(0,maxweight)
 cax.set_ylabel("Route weight\n[People/km]")
 cax.tick_params(
     axis='x',          # changes apply to the x-axis
@@ -967,7 +973,7 @@ for j in range(len(idxs)):
 
 
 
-# In[233]:
+# In[479]:
 
 
 Cities[Cities["Pop rank"]<21]
@@ -982,7 +988,7 @@ np.geomspace(2**(-6),1,7)
 # In[ ]:
 
 
-
+Routes
 
 
 # In[ ]:
@@ -997,10 +1003,10 @@ np.geomspace(2**(-6),1,7)
 1/np.inf
 
 
-# In[248]:
+# In[449]:
 
 
-Trimmed_Routes[5]
+Routes
 
 
 # In[297]:
