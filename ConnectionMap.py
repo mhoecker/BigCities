@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[16]:
+# In[17]:
 
 
 import numpy as np
@@ -24,14 +24,17 @@ import scipy as sp
 # f = IntProgress(min=0, max=max_count, description="Descriptor") # instantiate the bar
 # display(f) # display the bar
 # f.value += 1 # signal to increment the progress bar
-
+plt.plot(1)
+plt.close('all')
 plt.rcParams['lines.markersize'] = 5
 plt.rcParams["figure.figsize"] = (32,16)
-plt.rcParams["font.size"] = 12
+plt.rcParams["font.size"] = 14
 plt.rcParams['savefig.bbox']="tight"
 plt.rcParams['savefig.facecolor']="white"
+plt.plot(1)
+plt.close('all')
 
-#tiler = Stamen('watercolor')
+tiler = Stamen('watercolor')
 tiler = Stamen('terrain-background')
 #tiler = Stamen('terrain')
 #tiler = Stamen('toner')
@@ -39,18 +42,18 @@ tiler = Stamen('terrain-background')
 #tiler = QuadtreeTiles()
 
 
-# In[3]:
+# In[2]:
 
 
-### Function to calculate travel time with a start delay
+## Function to calculate travel time with a start delay
 def traveltime(distance,speed=100.0,wait=0.0):
     return wait*1.0+distance*1.0/speed
 
 # Function to caculate time saved between rail as compared to car or air
-# Assume a car leaves instantly at 100 kph
-# Assume a train departs after 30 min at 260 kph
-# Assume aircraft departs after 2 hours at 800 kph
-def timesaved(distance,rail_speed=260,rail_wait=1.0/3.0,air_speed=800,air_wait=2.0,car_speed=20):
+# Assume a car leaves instantly at 30 kph
+# Assume a train departs after 30 min at 290 kph
+# Assume aircraft departs after 2 hours at 500 kph
+def timesaved(distance,rail_speed=200,rail_wait=1.0/2.0,air_speed=500,air_wait=2.0,car_speed=20):
     A = traveltime(distance,speed=air_speed,wait=air_wait)
     C = traveltime(distance,speed=car_speed,wait=0)
     T = traveltime(distance,speed=rail_speed,wait=rail_wait)
@@ -138,15 +141,10 @@ def dist_to_bigger(cities,dr_matrix=None):
 # Gravity-like model
 # Weight each city pair by the geometric mean of the populations
 # Weight each pair by 1/distance
-# Weight each pair by the time saved versus car or air (whichever was faster)
-# Take the weight to some power, default is 1
-def gravitymodel(Pop1,Pop2,dr,p=1):
-#    if dr==0:
-#        return np.NaN
-#    else:
-#    return (timesaved(dr))*(np.sqrt(Pop1*Pop2)/dr)**p   
-    return np.sign(timesaved(dr))*(np.minimum(Pop1,Pop2))/dr
-#    return (np.minimum(Pop1,Pop2)/dr)**p
+# If the time saved versus car or air (whichever is faster) give zero weight
+def gravitymodel(Pop1,Pop2,dr):
+    g = (np.sqrt(Pop1*Pop2)/dr)
+    return np.sign(timesaved(dr))*g
     
 def RouteWeights(dr_matrix):
     N_Cities = len(dr_matrix[0,:])
@@ -159,8 +157,7 @@ def RouteWeights(dr_matrix):
         for j in range(i):
             weight = gravitymodel(Cities.iloc[i]["City Pop"],
                                     Cities.iloc[j]["City Pop"],
-                                    dr_matrix[i,j],
-                                    p=1)
+                                    dr_matrix[i,j])
             w_matrix[i,j] = weight
             w_matrix[j,i] = weight
     w_matrix[w_matrix<0] = 0
@@ -172,24 +169,26 @@ def makeRoutes(Cities,w_matrix=None,dr_matrix=None):
         dr_matrix = CityDistances(Cities)
     if w_matrix is None:
         w_matrix, dr_matrix = RouteWeights(dr_matrix)
-    Routes = [[],[],[],[],[],[]]
+    Routedict = {"Weight":[],"Large City":[],"Small City":[],"Large Index":[],"Small Index":[],"Distance":[]}
     N_Cities = len(dr_matrix[0,:])
+    N_Routes = np.sum(np.sign(w_matrix.flatten()))/2
     Progress = IntProgress(
-        min=0, max=N_Cities, description="Routing")
+        min=0, max=N_Routes, description="Routing")
     display(Progress) # display the bar
 
     for i in range(len(w_matrix[0,:])):
         js = np.argsort(-w_matrix[i,:])
-        Progress.value += 1
         for j in js:
             if (Cities.iloc[i]["City Pop"]>Cities.iloc[j]["City Pop"]) and (w_matrix[i,j]>0) and (i!=j):
-                Routes[0].append(w_matrix[i,j])
-                Routes[1].append(Cities.iloc[i]["Cities"])
-                Routes[2].append(Cities.iloc[j]["Cities"])
-                Routes[3].append(i)
-                Routes[4].append(j)
-                Routes[5].append(dr_matrix[i,j])
+                Progress.value += 1
+                Routedict["Weight"].append(w_matrix[i,j])
+                Routedict["Large City"].append(Cities.iloc[i]["Cities"])
+                Routedict["Small City"].append(Cities.iloc[j]["Cities"])
+                Routedict["Large Index"].append(i)
+                Routedict["Small Index"].append(j)
+                Routedict["Distance"].append(dr_matrix[i,j])
     Progress.close()
+    Routes = pd.DataFrame(data=Routedict)
     return Routes, w_matrix, dr_matrix
 
 # Lets remove some routes with obvious stopovers
@@ -207,7 +206,7 @@ def makeRoutes(Cities,w_matrix=None,dr_matrix=None):
 # can be added to a route with the path i->j replaced with i->k->j
 
 
-# In[4]:
+# In[3]:
 
 
 def RemoveRoutes(Cities,dr_matrix=None,w_matrix=None,Routes=None,Routeids=None,verbose=False):
@@ -222,8 +221,8 @@ def RemoveRoutes(Cities,dr_matrix=None,w_matrix=None,Routes=None,Routeids=None,v
     display(Progress) # display the bar
 
     for Routeid in Routeids:
-        a = Routes[3][Routeid]
-        b = Routes[4][Routeid]
+        a = Routes["Large Index"][Routeid]
+        b = Routes["Small Index"][Routeid]
         c = None
         drc = np.inf
         Progress.value += 1
@@ -239,9 +238,9 @@ def RemoveRoutes(Cities,dr_matrix=None,w_matrix=None,Routes=None,Routeids=None,v
         if c is not None:
             if verbose:
                 print("Between\n",
-                    Routes[1][Routeid],
+                    Routes["Large City"][Routeid],
                     "and",
-                    Routes[2][Routeid])
+                    Routes["Small City"][Routeid])
                 print("Proposing a stop at",
                       Cities["Cities"].iloc[c],
                       "\ndr=",
@@ -264,8 +263,8 @@ def TrimRoutes(Cities,
                dr_matrix=None,
                weights=None,
                Routes=None,
-               cos0=0,
                dr0=None,
+               useweights=0,
                verbose=False,
                very_verbose=False):
     if dr_matrix is None:
@@ -277,47 +276,53 @@ def TrimRoutes(Cities,
     else:
         w_matrix = 1.0*weights
     if dr0 is None:
-        dr0 = np.sqrt(2-2*cos0)
+        dr0 = 4
     if verbose:
         print("Number of routes before =",len(Routes[0]))
-    RouteOrder = np.argsort(Routes[5])[::-1]
+    RouteOrder = np.argsort(Routes["Distance"])[::-1]
     Progress = IntProgress(
         min=0, max=len(RouteOrder), description="Trimming")
     display(Progress) # display the bar
 
     for i in RouteOrder:
-        a = Routes[3][i]
-        b = Routes[4][i]
+        a = Routes["Large Index"][i]
+        b = Routes["Small Index"][i]
         c = None
         drc = dr0
         Progress.value += 1
         for j in range(len(dr_matrix[0,:])):
             if (w_matrix[a,j]>0) and (w_matrix[j,b]>0) and (j!=a) and (j!=b):
                 dr = (dr_matrix[a,j]+dr_matrix[b,j])/dr_matrix[a,b]
-                dw = w_matrix[a,b]/dr
-                if dr<drc and (w_matrix[a,b]-w_matrix[a,j])<dw and (w_matrix[a,b]-w_matrix[b,j])<dw:
-                    cos = Vcos(dr_matrix[a,j],dr_matrix[b,j],dr_matrix[a,b])
-                    if cos<cos0:
-                        c = j
-                        cosc = cos
-                        drc = dr
+                dw  = w_matrix[a,b]/dr
+                if useweights >= 2 :
+                    keep = (w_matrix[a,b]-w_matrix[a,j])<=dw and (w_matrix[a,b]-w_matrix[b,j])<=dw
+                    keep = keep and dr<=drc
+                elif useweights >= 1:
+                    keep = ((w_matrix[a,b]-w_matrix[a,j])<=dw or (w_matrix[a,b]-w_matrix[b,j])<=dw)
+                    keep = keep and dr<=drc
+                else:
+                    keep = dr<=drc
+                if keep:
+                    c = j
+                    drc = dr
+                    dwc = dw
         if c is not None:
             if very_verbose:
                 print("Between\n",
-                    Routes[1][i],
+                    Routes["Large City"][i],
                     "and",
-                    Routes[2][i])
+                    Routes["Small City"][i])
                 print("Proposing a stop at",
                       Cities["Cities"].iloc[c],
                       "\ndr=",
                       drc,
-                      "cos( theta ) =",
-                      cosc
+                      "dw =",
+                      dwc
                      )
-            w_matrix[c,b] = w_matrix[a,b]/drc+w_matrix[c,b]
-            w_matrix[b,c] = w_matrix[a,b]/drc+w_matrix[b,c]
-            w_matrix[a,c] = w_matrix[a,b]/drc+w_matrix[a,c]
-            w_matrix[c,a] = w_matrix[a,b]/drc+w_matrix[c,a]
+            w_matrix[c,b] = dwc+w_matrix[c,b]
+            w_matrix[b,c] = dwc+w_matrix[b,c]
+            w_matrix[a,c] = dwc+w_matrix[a,c]
+            w_matrix[c,a] = dwc+w_matrix[c,a]
             w_matrix[a,b] = 0
             w_matrix[b,a] = 0
 
@@ -352,14 +357,14 @@ def remove_route(Routes,
     return weights
 
 
-# In[5]:
+# In[4]:
 
 
-x = np.arange(10,1000,1)
+x = np.arange(8,1000,1)
 fig = plt.figure()
 ax = fig.add_subplot(1,1,1)
-ax.plot(x,gravitymodel(1.0,1.0,x,1))
-ax.plot(x,gravitymodel(1.0,1.0,x,1))
+ax.plot(x,gravitymodel(1.0,1.0,x))
+#ax.semilogx(x,gravitymodel(1.0,1.0,x,1))
 ax2 = ax.twiny()
 miles = np.arange(0,km_to_mi(x.max()),50)
 ax2.set_xticks(mi_to_km(miles))
@@ -367,7 +372,7 @@ ax2.set_xticklabels(["%4.0f" % z for z in miles])
 ax2.set_xlim(ax.get_xlim())
 
 
-# In[6]:
+# In[5]:
 
 
 def refiner(x,y,z,upscale=12,kind='linear'):
@@ -408,7 +413,7 @@ estd = renorm(estd)
 #plt.imshow(estd)
 
 
-# In[7]:
+# In[6]:
 
 
 #Load in the city data
@@ -440,13 +445,7 @@ Cities["Pop percentile"] = (np.argsort(Cities["City Pop"].values))/(len(Cities["
 #    print(city[1])
 
 
-# In[ ]:
-
-
-
-
-
-# In[8]:
+# In[7]:
 
 
 ##### Set up a globe with a specific radius
@@ -474,8 +473,9 @@ CONUS_Extent = np.array([-123.0, -69.5, 25.25, 49.25])
 #NE_Extent =       [ -80.0,  -60.0, 37.0, 49.0]
 #SE_Extent =       [ -85.0,  -65.0, 25.0, 37.0]
 Extents = [CONUS_Extent]
+files = ["CONUS.png"]
 Nx = 5
-Ny = 5
+Ny = 4
 dx = np.abs(CONUS_Extent[1]-CONUS_Extent[0])/Nx
 dy = np.abs(CONUS_Extent[3]-CONUS_Extent[2])*1.0/Ny
 print(dx,dy)
@@ -487,42 +487,17 @@ for i in range(Nx):
                 CONUS_Extent[2]+j*dy,
                 CONUS_Extent[2]+(j+1.0)*dy])
         if i>0:
-            extent[0] = extent[0]-0.5*dx
+            extent[0] = extent[0]-1.0*dx*(Nx-1.0)/Nx
         if i+1<Nx:
-            extent[1] = extent[1]+0.5*dx
+            extent[1] = extent[1]+1.0*dx*(Nx-1.0)/Nx
         if j>0:
-            extent[2] = extent[2]-0.5*dy
+            extent[2] = extent[2]-1.0*dy*(Ny-1.0)/Ny
         if j+1<Ny:
-            extent[3] = extent[3]+0.5*dy
+            extent[3] = extent[3]+1.0*dy*(Ny-1.0)/Ny
 #        print(i,j,extent)
         Extents.append(extent)
-files = ["CONUS.png",
-         "SouthWest.png",
-         "SCentralWest.png",
-         "CentralWest.png",
-         "NCentralWest.png",
-         "NorthWest.png",
-         "MtSouth.png",
-         "MtSCentral.png",
-         "MtCentral.png",
-         "MtNCentral.png",
-         "MtNorth.png",
-         "SouthCentral.png",
-         "SCentral.png",
-         "Central.png",
-         "NCentral.png",
-         "NorthCentral.png",
-         "SouthApalachia.png",
-         "SCentralApalachia.png",
-         "CentralApalachia.png",
-         "NCentralApalachia.png",
-         "NorthApalachia.png",
-         "SouthEast.png",
-         "SCentralEast.png",
-         "CentralEast.png",
-         "NCentralEast.png",
-         "NorthEast.png",
-        ]
+        files.append(str(i).zfill(2)+"-"+str(j).zfill(2)+".png")
+
 for extent,file in zip(Extents,files):
     print(file,extent)
 #proj = ccrs.LambertCylindrical(central_longitude=np.mean(CONUS_Extent[0:2]))
@@ -542,7 +517,7 @@ proj = ccrs.AlbersEqualArea(
 #    print(proj)
 
 
-# In[9]:
+# In[8]:
 
 
 plt.close('all')
@@ -570,7 +545,7 @@ for i in range(N):
 #plt.close(fig)
 
 
-# In[10]:
+# In[9]:
 
 
 ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
@@ -583,225 +558,287 @@ ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
 #                     ALL_Routes[5][i])
 
 
-# In[11]:
+# In[10]:
 
 
-Routeids =[]
 citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
-           ["Milwaukee-Waukesha","Grand Rapids-Kentwood"],
-           ["Grand Rapids-Kentwood","Appleton"],
-           ["Grand Rapids-Kentwood","Madison"],
-           ["Grand Rapids-Kentwood","Racine"],
-           ["Janesville-Beloit","Grand Rapids-Kentwood"],
-           ["Monroe","Appleton"],
-           ["Monroe","Racine"],
-           ["Monroe","Erie"],
-           ["Cleveland-Elyria" , "Monroe"],
-           ["San Francisco-Oakland-Berkeley","Vallejo"],
-           ["San Francisco-Oakland-Berkeley","Napa"],
-           ["San Francisco-Oakland-Berkeley","Santa Rosa-Petaluma"],
-           ["Detroit-Warren-Dearborn","Erie"],
-           ["Detroit-Warren-Dearborn","Buffalo-Cheektowaga"],
-           ["Virginia Beach-Norfolk-Newport News","Atlantic City-Hammonton"],
-           ["Baltimore-Columbia-Towson","Atlantic City-Hammonton"],
-           ["Grand Rapids-Kentwood","Green Bay"],
-           ["Lansing-East Lansing","Green Bay"],
-           ["Green Bay","Niles"],
-           ["Green Bay" , "Battle Creek"],
-           ["Appleton" , "Battle Creek"],
-           ["Green Bay" , "Saginaw"],
-           ["Chicago-Naperville-Elgin","Muskegon"],
-           ["Chicago-Naperville-Elgin","Niles"],
-           ["Chicago-Naperville-Elgin","Battle Creek"],
-           ["Chicago-Naperville-Elgin","Niles"],
-           ["Grand Rapids-Kentwood","Chicago-Naperville-Elgin"],
-           ["Chicago-Naperville-Elgin","Jackson"],
-           ["Milwaukee-Waukesha","Jackson"],
-           ["Sheboygan","Jackson"],
-           ["Racine","Battle Creek"],
-           ["Milwaukee-Waukesha","Battle Creek"],
-           ["Milwaukee-Waukesha","Saginaw"],
-           ["Rockford","Niles"],
-           ["Grand Rapids-Kentwood" , "Rockford"],
-           ["Saginaw","Sheboygan"],
-           ["Saginaw","Racine"],
-           ["Janesville-Beloit","Niles"],
-           ["Racine","Niles"],
-           ["Appleton","Niles"],
-           ["Chicago-Naperville-Elgin","Kalamazoo-Portage"],
-           ["Oshkosh-Neenah","Kalamazoo-Portage"],
-           ["Rockford","Kalamazoo-Portage"],
-           ["Janesville-Beloit","Kalamazoo-Portage"],
-           ["Kalamazoo-Portage","Racine"],
-           ["Racine","Jackson"],
-           ["Kalamazoo-Portage","Sheboygan"],
-           ["Green Bay","Kalamazoo-Portage"],
-           ["Niles","Sheboygan"],
-           ["Milwaukee-Waukesha","Kalamazoo-Portage"],
-           ["Milwaukee-Waukesha","Niles"],
-           ["Green Bay" , "Muskegon"],
-           ["Milwaukee-Waukesha" , "Muskegon"],
-           ["Appleton" , "Muskegon"],
-           ["Kalamazoo-Portage","Appleton"],
-           ["Rockford","Muskegon"],
-           ["Muskegon","Racine"],
-           ["Lansing-East Lansing" , "Sheboygan"],
-           ["Lansing-East Lansing","Racine"],
-           ["Milwaukee-Waukesha","Lansing-East Lansing"],
-           ["Lansing-East Lansing","Appleton"],
-           ["Madison","Muskegon"],
-           ["Madison","Niles"],
-           ["Oshkosh-Neenah","Niles"],
-           ["Muskegon" , "Oshkosh-Neenah"],
-           ["Grand Rapids-Kentwood","Oshkosh-Neenah"],
-           ["Muskegon","Janesville-Beloit"],
-           ["Muskegon" , "Wausau-Weston"],
-           ["Grand Rapids-Kentwood" , "Wausau-Weston"],
-           ["Seattle-Tacoma-Bellevue","Bremerton-Silverdale-Port Orchard"],
-           ["Bremerton-Silverdale-Port Orchard","Bellingham"],
-           ["Bremerton-Silverdale-Port Orchard","Mount Vernon-Anacortes"],
-           ["Salisbury","Hagerstown-Martinsburg"],
-           ["Salisbury","Goldsboro"],
-           ["Salisbury","New Bern"],
-           ["Durham-Chapel Hill","Salisbury"],
-           ["Salisbury" , "Greenville"],
-           ["Salisbury","Burlington"],
-           ["Raleigh-Cary","Salisbury"],
-           ["Richmond","Salisbury"],
-           ["Atlantic City-Hammonton","Salisbury"],
-           ["Virginia Beach-Norfolk-Newport News","Salisbury"],
-           ["Washington-Arlington-Alexandria","Salisbury"],
-           ["Salisbury","Charlottesville"],
-           ["Durham-Chapel Hill","Salisbury"],
-           ["Baltimore-Columbia-Towson","Salisbury"],
-           ["Salisbury","Lynchburg"],
-           ["Salisbury" , "Greenville"],
-           ["Salisbury", "Jacksonville"],
-           ["Durham-Chapel Hill","Vineland-Bridgeton"],
-           ["Virginia Beach-Norfolk-Newport News","Vineland-Bridgeton"],
-           ["Washington-Arlington-Alexandria","Vineland-Bridgeton"],
-           ["Richmond","Vineland-Bridgeton"],
-           ["Greenville" , "Vineland-Bridgeton"],
-           ["Salisbury","Vineland-Bridgeton"],
-           ["Salisbury","Rocky Mount"],
-           ["Vineland-Bridgeton","Rocky Mount"],
-           ["Charlottesville","Vineland-Bridgeton"],
-           ["Greenville" , "Dover"],
-           ["Dover","Charlottesville"],
-           ["Atlantic City-Hammonton","Dover"],
-           ["Virginia Beach-Norfolk-Newport News","Dover"],
-           ["Washington-Arlington-Alexandria","Dover"],
-           ["Baltimore-Columbia-Towson","Dover"],
-           ["Richmond","Dover"],
-           ["Panama City","Homosassa Springs"],
-           ["Baltimore-Columbia-Towson","Vineland-Bridgeton"],
-           ["Dover","Rocky Mount"],
-           ["Lynchburg","Dover"],
-           ["Durham-Chapel Hill","Dover"],
-           ["Raleigh-Cary","Dover"],
-           ["Dover","Burlington"],
-           ["Greensboro-High Point","Dover"],
-           ["Dover","Vineland-Bridgeton"],
-           ["Vineland-Bridgeton","California-Lexington Park"],
-           ["Dover","California-Lexington Park"],
-           ["Salisbury","California-Lexington Park"],
-           ["Richmond","California-Lexington Park"],
-           ["Vineland-Bridgeton","California-Lexington Park"],
-           ["Muskegon","Sheboygan"],
-           ["Muskegon","La Crosse-Onalaska"],
-           ["Muskegon","Eau Claire"],
-           ["Cedar Rapids","Muskegon"],
-           ["Grand Rapids-Kentwood","Sheboygan"],
-           ["Battle Creek","Sheboygan"],
-           ["Dover" , "New Bern"],
-           ["Rocky Mount","California-Lexington Park"],
-           ["Greenville","California-Lexington Park"],
-           ["Virginia Beach-Norfolk-Newport News","California-Lexington Park"],
-           ["Tampa-St Petersburg-Clearwater" , "Panama City"],
-           ["Stockton","Vallejo"],
-           ["San Jose-Sunnyvale-Santa Clara","Vallejo"],
-           ["Modesto","Vallejo"],
-           ["Vallejo","Santa Cruz-Watsonville"],
-           ["Vallejo","Salinas"],
-           ["Stockton","Napa"],
-           ["San Jose-Sunnyvale-Santa Clara","Napa"],
-           ["San Jose-Sunnyvale-Santa Clara","Santa Rosa-Petaluma"],
-           ["Stockton","Santa Rosa-Petaluma"],
-           ["Santa Cruz-Watsonville","Napa"],
-           ["Santa Rosa-Petaluma","Santa Cruz-Watsonville"],
-           ["Bremerton-Silverdale-Port Orchard","Wenatchee"],
+            ['Washington-Arlington-Alexandria','Atlantic City-Hammonton'],
+            ["Milwaukee-Waukesha","Grand Rapids-Kentwood"],
+            ["Grand Rapids-Kentwood","Appleton"],
+            ["Grand Rapids-Kentwood","Madison"],
+            ["Grand Rapids-Kentwood","Racine"],
+            ["Janesville-Beloit","Grand Rapids-Kentwood"],
+            ["Monroe","Appleton"],
+            ["Monroe","Racine"],
+            ["Monroe","Erie"],
+            ["Cleveland-Elyria" , "Monroe"],
+            ["San Francisco-Oakland-Berkeley","Vallejo"],
+            ["San Francisco-Oakland-Berkeley","Napa"],
+            ["San Francisco-Oakland-Berkeley","Santa Rosa-Petaluma"],
+            ["Detroit-Warren-Dearborn","Erie"],
+            ["Detroit-Warren-Dearborn","Buffalo-Cheektowaga"],
+            ["Virginia Beach-Norfolk-Newport News","Atlantic City-Hammonton"],
+            ["Baltimore-Columbia-Towson","Atlantic City-Hammonton"],
+            ["Grand Rapids-Kentwood","Green Bay"],
+            ["Lansing-East Lansing","Green Bay"],
+            ["Green Bay","Niles"],
+            ["Green Bay" , "Battle Creek"],
+            ["Appleton" , "Battle Creek"],
+            ["Appleton", "Saginaw"],
+            ['Richmond','Atlantic City-Hammonton'],
+            ['Salisbury','Winchester'],
+            ["Green Bay" , "Saginaw"],
+            ["Chicago-Naperville-Elgin","Muskegon"],
+            ["Chicago-Naperville-Elgin","Niles"],
+            ["Chicago-Naperville-Elgin","Battle Creek"],
+            ["Chicago-Naperville-Elgin","Niles"],
+            ["Grand Rapids-Kentwood","Chicago-Naperville-Elgin"],
+            ["Chicago-Naperville-Elgin","Jackson"],
+            ["Milwaukee-Waukesha","Jackson"],
+            ["Sheboygan","Jackson"],
+            ["Racine","Battle Creek"],
+            ["Milwaukee-Waukesha","Battle Creek"],
+            ["Milwaukee-Waukesha","Saginaw"],
+            ["Rockford","Niles"],
+            ["Grand Rapids-Kentwood" , "Rockford"],
+            ["Saginaw","Sheboygan"],
+            ["Saginaw","Racine"],
+            ["Janesville-Beloit","Niles"],
+            ["Racine","Niles"],
+            ["Appleton","Niles"],
+            ["Chicago-Naperville-Elgin","Kalamazoo-Portage"],
+            ["Oshkosh-Neenah","Kalamazoo-Portage"],
+            ["Rockford","Kalamazoo-Portage"],
+            ["Janesville-Beloit","Kalamazoo-Portage"],
+            ["Kalamazoo-Portage","Racine"],
+            ["Racine","Jackson"],
+            ["Kalamazoo-Portage","Sheboygan"],
+            ["Green Bay","Kalamazoo-Portage"],
+            ["Niles","Sheboygan"],
+            ["Milwaukee-Waukesha","Kalamazoo-Portage"],
+            ['Duluth','Muskegon'],
+            ["Milwaukee-Waukesha","Niles"],
+            ["Green Bay" , "Muskegon"],
+            ["Milwaukee-Waukesha" , "Muskegon"],
+            ["Appleton" , "Muskegon"],
+            ["Kalamazoo-Portage","Appleton"],
+            ["Rockford","Muskegon"],
+            ["Muskegon","Racine"],
+            ["Lansing-East Lansing" , "Sheboygan"],
+            ["Lansing-East Lansing","Racine"],
+            ["Milwaukee-Waukesha","Lansing-East Lansing"],
+            ["Lansing-East Lansing","Appleton"],
+            ["Madison","Muskegon"],
+            ["Madison","Niles"],
+            ["Oshkosh-Neenah","Niles"],
+            ["Muskegon" , "Oshkosh-Neenah"],
+            ["Grand Rapids-Kentwood","Oshkosh-Neenah"],
+            ["Muskegon","Janesville-Beloit"],
+            ["Muskegon" , "Wausau-Weston"],
+            ["Grand Rapids-Kentwood" , "Wausau-Weston"],
+            ["Seattle-Tacoma-Bellevue","Bremerton-Silverdale-Port Orchard"],
+            ["Bremerton-Silverdale-Port Orchard","Bellingham"],
+            ["Bremerton-Silverdale-Port Orchard","Mount Vernon-Anacortes"],
+            ["Salisbury","Hagerstown-Martinsburg"],
+            ["Salisbury","Goldsboro"],
+            ["Salisbury","New Bern"],
+            ["Durham-Chapel Hill","Salisbury"],
+            ["Salisbury" , "Greenville"],
+            ["Salisbury","Burlington"],
+            ["Raleigh-Cary","Salisbury"],
+            ["Richmond","Salisbury"],
+            ["Atlantic City-Hammonton","Salisbury"],
+            ["Virginia Beach-Norfolk-Newport News","Salisbury"],
+            ["Washington-Arlington-Alexandria","Salisbury"],
+            ["Salisbury","Charlottesville"],
+            ["Durham-Chapel Hill","Salisbury"],
+            ["Baltimore-Columbia-Towson","Salisbury"],
+            ["Salisbury","Lynchburg"],
+            ["Salisbury" , "Greenville"],
+            ["Salisbury", "Jacksonville"],
+            ["Durham-Chapel Hill","Vineland-Bridgeton"],
+            ["Virginia Beach-Norfolk-Newport News","Vineland-Bridgeton"],
+            ["Washington-Arlington-Alexandria","Vineland-Bridgeton"],
+            ["Richmond","Vineland-Bridgeton"],
+            ["Greenville" , "Vineland-Bridgeton"],
+            ["Salisbury","Vineland-Bridgeton"],
+            ["Salisbury","Rocky Mount"],
+            ["Vineland-Bridgeton","Rocky Mount"],
+            ["Charlottesville","Vineland-Bridgeton"],
+            ["Greenville" , "Dover"],
+            ["Dover","Charlottesville"],
+            ["Atlantic City-Hammonton","Dover"],
+            ["Virginia Beach-Norfolk-Newport News","Dover"],
+            ["Washington-Arlington-Alexandria","Dover"],
+            ["Baltimore-Columbia-Towson","Dover"],
+            ["Richmond","Dover"],
+            ["Panama City","Homosassa Springs"],
+            ["Baltimore-Columbia-Towson","Vineland-Bridgeton"],
+            ["Dover","Rocky Mount"],
+            ["Lynchburg","Dover"],
+            ["Durham-Chapel Hill","Dover"],
+            ["Raleigh-Cary","Dover"],
+            ["Dover","Burlington"],
+            ["Greensboro-High Point","Dover"],
+            ["Dover","Vineland-Bridgeton"],
+            ["Vineland-Bridgeton","California-Lexington Park"],
+            ["Dover","California-Lexington Park"],
+            ["Salisbury","California-Lexington Park"],
+            ["Richmond","California-Lexington Park"],
+            ["Vineland-Bridgeton","California-Lexington Park"],
+            ["Muskegon","Sheboygan"],
+            ["Muskegon","La Crosse-Onalaska"],
+            ["Muskegon","Eau Claire"],
+            ["Cedar Rapids","Muskegon"],
+            ["Grand Rapids-Kentwood","Sheboygan"],
+            ["Battle Creek","Sheboygan"],
+            ["Dover" , "New Bern"],
+            ["Rocky Mount","California-Lexington Park"],
+            ["Greenville","California-Lexington Park"],
+            ["Virginia Beach-Norfolk-Newport News","California-Lexington Park"],
+            ["Tampa-St Petersburg-Clearwater" , "Panama City"],
+            ["Stockton","Vallejo"],
+            ["San Jose-Sunnyvale-Santa Clara","Vallejo"],
+            ["Modesto","Vallejo"],
+            ["Vallejo","Santa Cruz-Watsonville"],
+            ["Vallejo","Salinas"],
+            ["Stockton","Napa"],
+            ["San Jose-Sunnyvale-Santa Clara","Napa"],
+            ["San Jose-Sunnyvale-Santa Clara","Santa Rosa-Petaluma"],
+            ["Stockton","Santa Rosa-Petaluma"],
+            ["Santa Cruz-Watsonville","Napa"],
+            ["Santa Rosa-Petaluma","Santa Cruz-Watsonville"],
+            ["Bremerton-Silverdale-Port Orchard","Wenatchee"],
+            ["Salisbury","Jacksonville"],
+            ['Atlantic City-Hammonton', 'California-Lexington Park'],
+            ['Detroit-Warren-Dearborn','Rochester'],
+            ['Dover','Winchester'],
+            ['Lynchburg','Vineland-Bridgeton'],
+            ['Raleigh-Cary','Vineland-Bridgeton'],
+            ['Rochester','Muskegon'],
+            ['Minneapolis-St Paul-Bloomington','Muskegon'],
+            ['Atlantic City-Hammonton','Rocky Mount'],
+            ['Vineland-Bridgeton','New Bern'],
+            ['Atlantic City-Hammonton','Greenville'],
+            ['Vineland-Bridgeton','Goldsboro'],
+            ['Salisbury','Harrisonburg'],
+            ['Atlantic City-Hammonton','New Bern'],
+            ['Salisbury','Staunton'],
+            ['Salisbury','Roanoke'],
+            ['Atlantic City-Hammonton','Goldsboro'],
+            ['Jacksonville','Vineland-Bridgeton'],
+            ['Atlantic City-Hammonton','Charlottesville'],
+            ['Burlington','Vineland-Bridgeton'],
+            ['Durham-Chapel Hill','Atlantic City-Hammonton'],
+            ['Greensboro-High Point','Salisbury'],
+            ['Salisbury','Blacksburg-Christiansburg'],
+            ['Fayetteville','Salisbury'],
+            ['Winston-Salem','Salisbury'],
+            ['Dover','Goldsboro'],
+            ['Jacksonville','Dover'],
+            ['Salisbury','Wilmington'],
+            ['Salisbury','Beckley'],
+            ['Charlotte-Concord-Gastonia','Salisbury'],
+            ['Salisbury','Florence'],
+            ['Durham-Chapel Hill','California-Lexington Park'],
+            ['Raleigh-Cary','California-Lexington Park'],
+            ['Goldsboro','California-Lexington Park'],
+            ['New Bern','California-Lexington Park']
 #           ["San Diego-Chula Vista-Carlsbad","El Centro"],#
 #           ["San Diego-Chula Vista-Carlsbad","Yuma"],#
 #           ["Phoenix-Mesa-Chandler","San Diego-Chula Vista-Carlsbad"],#
 #           ["San Diego-Chula Vista-Carlsbad","Prescott Valley-Prescott"],#
 #           ["Phoenix-Mesa-Chandler","Riverside-San Bernardino-Ontario"]#
            ]
-for i in range(len(ALL_Routes[0])):
-    for citypair in citypairs:
-        hasA = (citypair[0] == ALL_Routes[1][i]) or (citypair[0] == ALL_Routes[2][i])
-        hasB = (citypair[1] == ALL_Routes[1][i]) or (citypair[1] == ALL_Routes[2][i])
-        if hasA and hasB:
-            Routeids.append(i)
-Routeids = sorted(Routeids)
-#print(Routeids)
-print(w_matrix_ALL.shape)
-print(len(ALL_Routes[0]),"-",len(Routeids))
+Routeids =[]
+iswet = ALL_Routes["Weight"]<0
+for citypair in citypairs:
+    iswet = iswet|(ALL_Routes["Large City"]==citypair[0])&(ALL_Routes["Small City"]==citypair[1])
+    iswet = iswet|(ALL_Routes["Large City"]==citypair[1])&(ALL_Routes["Small City"]==citypair[0])
+Routeids = ALL_Routes.index[iswet].values
+#for i,row in ALL_Routes[iswet].iterrows():
+#    print(row.values)
+print(w_matrix_ALL.shape,len(ALL_Routes.index),"-",len(Routeids))
 Dry_Routes, Dry_weights, dr_matrix = RemoveRoutes(Cities,
                                        w_matrix=w_matrix_ALL,
                                        dr_matrix=dr_matrix,
                                        Routes=ALL_Routes,
                                        Routeids=Routeids,
                                        verbose=False)
-print(w_matrix_ALL.shape,len(ALL_Routes[0]))
-print(Dry_weights.shape,len(Dry_Routes[0]))
+print(w_matrix_ALL.shape,len(ALL_Routes.index))
+print(Dry_weights.shape,len(Dry_Routes.index))
 
 
-# In[12]:
+# In[11]:
 
 
-cos0 = np.cos(np.pi*0.0/1.0)
-dr0 = 4.*(1+cos0)
+dr0 = 4
 Trimmed_Routes, Trimmed_weights, dr_matrix = TrimRoutes(Cities,
                                              Routes=Dry_Routes,
                                              weights=Dry_weights,
                                              dr_matrix=dr_matrix,
-                                             cos0=cos0,
                                              dr0=dr0,
+                                             useweights=2,
                                              very_verbose=False)
-print(w_matrix_ALL.shape,len(ALL_Routes[0]))
-print(Dry_weights.shape,len(Dry_Routes[0]))
-print(Trimmed_weights.shape,len(Trimmed_Routes[0]))
-print(cos0,dr0)
+print(w_matrix_ALL.shape,len(ALL_Routes.index))
+print(Dry_weights.shape,len(Dry_Routes.index))
+print(Trimmed_weights.shape,len(Trimmed_Routes.index))
+Wmax = 80000
+fig = plt.figure()
+ax = fig.add_axes((.05,.0,.95,1.0), projection=proj)
+xycords = ccrs.PlateCarree()._as_mpl_transform(ax)
+ax.add_feature(cfeature.COASTLINE,linewidth=1,zorder=2,edgecolor="darkgrey")
+ax.add_feature(cfeature.STATES,linewidth=1,zorder=2,edgecolor="grey")
+lonmin = -135
+lonmax = -60
+latmin = 30
+latmax = 50
+ax.set_extent([lonmin,lonmax,latmin,latmax],XYproj)
+for i,row in Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Weight"]>0.0*Wmax)].iterrows():
+#for i,row in ALL_Routes[iswet].iterrows():
+    lons = Cities["Lon"][[row["Large Index"],row["Small Index"]]]
+    lats = Cities["Lat"][[row["Large Index"],row["Small Index"]]]
+    if np.min(lons)>lonmin and np.max(lons) < lonmax and np.min(lats) > latmin and np.max(lats) < latmax:
+        ax.plot(lons,lats,transform=XYproj)
+        for idxsize in ["Large Index","Small Index"]:
+            citytext = Cities["Cities"][row[idxsize]].split("-")[0].split("/")[0]
+            citytext = citytext.replace(" ","\n")
+            cityxy = (Cities["Lon"][row[idxsize]],
+                   Cities["Lat"][row[idxsize]])
+            ax.annotate(xy=cityxy,
+                text=citytext,
+                xycoords = xycords,
+                ha="center", va="center",
+                rotation = 0,
+                fontsize = 20,
+                bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.5),edgecolor=None,lw=0),
+                annotation_clip=True,
+                    zorder=5)
+        print("['"+Cities["Cities"][row["Large Index"]]+"','"+Cities["Cities"][row["Small Index"]]+"']")
+#Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Weight"]>.5*Wmax)]
 
 
-# In[13]:
+# In[12]:
 
 
 #print(Trimmed_Routes[0])
 dq=.0625
 for q in np.arange(0,1+dq,dq):
     print(
-        np.floor(np.quantile(Dry_Routes[0],q)),
-        np.floor(np.quantile(Trimmed_Routes[0],q)),
+        np.floor(np.quantile(Dry_Routes["Weight"],q)),
+        np.floor(np.quantile(Trimmed_Routes["Weight"],q)),
         str(q*100)+"%")
 
 
-# In[25]:
+# In[13]:
 
 
 #weightlimit = np.quantile(Trimmed_Routes[0],.000)
 weightlimit = 0.0
-weightlimit = 50000.0
-weights = Trimmed_weights*1
-#weights[Trimmed_weights < weightlimit] = 0
-Routeids = []
-if weightlimit>np.min(Trimmed_Routes[0]):
-    for i in range(len(Trimmed_Routes[0])):
-        if Trimmed_Routes[0][i]<weightlimit:
-#            print(Trimmed_Routes[1][i],", ",Trimmed_Routes[2][i],)
-            Routeids.append(i)
-#            print(len(Routeids))
-#    Routes, weights, dr_matrix = makeRoutes(Cities,weights,dr_matrix)
+#weightlimit = 5000.0
+if weightlimit>np.min(Trimmed_Routes["Weight"]):
+    Routeids = Trimmed_Routes[Trimmed_Routes["Weight"]<weightlimit].index.values
+    print(Routeids)
     Routes, weights, dr_matrix = RemoveRoutes(Cities,
                                        w_matrix=weights,
                                        dr_matrix=dr_matrix,
@@ -809,23 +846,25 @@ if weightlimit>np.min(Trimmed_Routes[0]):
                                        Routeids=Routeids,
                                        verbose=False)
 else:
+    Routeids = []
+    weights = Trimmed_weights*1
     Routes = Trimmed_Routes
-print(w_matrix_ALL.shape,len(ALL_Routes[0]))
-print(Dry_weights.shape,len(Dry_Routes[0]))
-print(Trimmed_weights.shape,len(Trimmed_Routes[0]))
-print(len(Trimmed_Routes[0]),"-",len(Routeids))
-print(weights.shape,len(Routes[0]))
+print(w_matrix_ALL.shape,len(ALL_Routes.index))
+print(Dry_weights.shape,len(Dry_Routes.index))
+print(Trimmed_weights.shape,len(Trimmed_Routes.index))
+print(len(Trimmed_Routes.index),"-",len(Routeids))
+print(weights.shape,len(Routes.index))
 
 
-# In[26]:
+# In[19]:
 
 
 plt.close('all')
 Connections = np.sum(np.sign(weights), axis = 1)
-maxweight = np.max(Routes[:][0])
-minweight = np.min(Routes[:][0])
+maxweight = np.max(Routes["Weight"])
+minweight = np.min(Routes["Weight"])
 cmap = cm.get_cmap('tab20b') #routes
-gamma = 1/2.5
+gamma = 1/1.5
 smap = cm.get_cmap('autumn') #cities
 zmap = cm.get_cmap('binary') #Elevation
 ymap = cm.get_cmap('YlGn_r') # Alt Elevation
@@ -890,8 +929,8 @@ for i in range(N_cities):
                        #alpha=.625,
                        transform=XYproj,
                        zorder=4)
-        cityfont = np.max([City_size*15,12])
-        if City_prominence>128:
+        cityfont = np.max([City_size*14,10])
+        if City_prominence>90:
                 citytext = Cities.iloc[i]["Cities"].split("-")[0].split("/")[0]
                 citytext = citytext.replace(" ","\n")
                 cityxy = (Cities.iloc[i]["Lon"], Cities.iloc[i]["Lat"])
@@ -901,16 +940,16 @@ for i in range(N_cities):
                     ha="center", va="center",
                     rotation = 0,
                     fontsize = cityfont,
-                    bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.75),edgecolor=None,lw=0),
+                    bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.5),edgecolor=None,lw=0),
                     annotation_clip=True,
                     zorder=5)
-for route in pd.DataFrame(Routes).T.values:
+for idx, route in Routes.iterrows():
         weight = route[0]
         if (weight>0) :
             k = route[3]
             l = route[4]
             locs = np.vstack((Cities.iloc[k][["Lon","Lat"]].values,Cities.iloc[l][["Lon","Lat"]].values))
-            lw = 6
+            lw = 8
             # Draw the lines on all the subplots
 #            color_value = np.log(weight/minweight)/np.log(maxweight/minweight)
 #            color_value = (weight)/(maxweight)
@@ -948,6 +987,7 @@ cax.tick_params(
     labelbottom=False) # labels along the bottom edge are off
 
 for Extent, file in zip(Extents,files):
+#for Extent, file in zip([Extents[0]],[files[0]]):
     print("Creating "+file)
     ax.set_extent(Extent,XYproj)
     print("Saving",file)
@@ -957,80 +997,26 @@ print("Done")
 plt.close(fig)
 
 
-# In[175]:
-
-
-idxs = np.argsort(-np.array(Trimmed_Routes[0]))
-for j in range(len(idxs)):
-    i = idxs[j]
-#    print(j,Trimmed_Routes[0][i],",",Trimmed_Routes[1][i],",",Trimmed_Routes[2][i])
-#    print(i,Routes[1][i],",",Routes[2][i],",",Routes[3][i],",",Routes[4][i],",",Routes[5][i])
-
-
 # In[ ]:
 
 
 
 
 
-# In[479]:
+# In[15]:
 
 
-Cities[Cities["Pop rank"]<21]
+#Trimmed_Routes[(Trimmed_Routes["Large City"]=="Salisbury")|(Trimmed_Routes["Small City"]=="Salisbury")]
+#Dry_Routes[((Dry_Routes["Large City"]=="Salisbury")|(Dry_Routes["Small City"]=="Salisbury"))&(Dry_Routes["Distance"]>1000)]
+#ALL_Routes[(ALL_Routes["Large City"]=="Salisbury")|(ALL_Routes["Small City"]=="Salisbury")]
+Wmax = 40000
+Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Weight"]>.5*Wmax)]
 
 
-# In[204]:
+# In[18]:
 
 
-np.geomspace(2**(-6),1,7)
-
-
-# In[ ]:
-
-
-Routes
-
-
-# In[ ]:
-
-
-
-
-
-# In[93]:
-
-
-1/np.inf
-
-
-# In[449]:
-
-
-Routes
-
-
-# In[297]:
-
-
-np.sum(Trimmed_weights[:,:]>0)/2
-
-
-# In[315]:
-
-
-np.log(100)/np.log(2)
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
+plt.semilogy(np.diff(sorted(Trimmed_Routes["Weight"])/np.median(Trimmed_Routes["Weight"])))
 
 
 # In[ ]:
