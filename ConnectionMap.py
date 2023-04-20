@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[576]:
+# In[1]:
 
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.cm as cm
+import matplotlib as mpl
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from cartopy.io.img_tiles import Stamen
@@ -23,7 +24,7 @@ import scipy as sp
 from geopy.distance import distance as gpdistance
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
-geolocator = Nominatim(user_agent="")
+geolocator = Nominatim(user_agent="None")
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=2)
 get_ipython().run_line_magic('matplotlib', 'inline')
 # f = IntProgress(min=0, max=max_count, description="Descriptor") # instantiate the bar
@@ -45,9 +46,10 @@ tiler = Stamen('terrain-background')
 #tiler = Stamen('toner')
 #tiler = OSM()
 #tiler = QuadtreeTiles()
+mpl.colormaps
 
 
-# In[577]:
+# In[2]:
 
 
 ## Function to calculate travel time with a start delay
@@ -215,7 +217,7 @@ def makeRoutes(Cities,w_matrix=None,dr_matrix=None):
 # can be added to a route with the path i->j replaced with i->k->j
 
 
-# In[578]:
+# In[3]:
 
 
 def RemoveRoutes(Cities,dr_matrix=None,w_matrix=None,Routes=None,Routeids=None,verbose=False):
@@ -366,7 +368,7 @@ def remove_route(Routes,
     return weights
 
 
-# In[579]:
+# In[4]:
 
 
 x = np.arange(1,1200,1)
@@ -381,15 +383,22 @@ ax2.set_xticklabels(["%4.0f" % z for z in miles])
 ax2.set_xlim(ax.get_xlim())
 
 
-# In[49]:
+# In[5]:
 
 
 def refiner(x,y,z,upscale=12,kind='linear'):
     if upscale!=1 and upscale>0:
         xo = np.arange(x[0], x[-1], (x[1]-x[0])/(upscale+1))
         yo = np.arange(y[0], y[-1], (y[1]-y[0])/(upscale+1))
-        interp = sp.interpolate.interp2d(x,y,z,kind)
+#        interp = sp.interpolate.interp2d(x,y,z,kind)
+#        zi = interp(xo,yo)
+        
+        interp = sp.interpolate.RectBivariateSpline(x,y,z.T)
         zi = interp(xo,yo)
+
+        #interp = sp.interpolate.RegularGridInterpolator((y,x),z,bounds_error=False, fill_value=None,method=kind)
+        #YY,XX = np.meshgrid(yo,xo)
+        #zi = interp((YY,XX))
         zo = sp.ndimage.gaussian_filter(zi,0.25*upscale)
         return xo, yo, zo
 def renorm(array):
@@ -422,7 +431,7 @@ estd = renorm(estd)
 #plt.imshow(estd)
 
 
-# In[580]:
+# In[6]:
 
 
 #Load in the city data
@@ -465,7 +474,7 @@ Cities["Pop percentile"] = (np.argsort(Cities["City Pop"].values))/(len(Cities["
 Cities
 
 
-# In[759]:
+# In[7]:
 
 
 ##### Set up a globe with a specific radius
@@ -541,13 +550,13 @@ proj = ccrs.AlbersEqualArea(
 #    print(proj)
 
 
-# In[760]:
+# In[8]:
 
 
 plt.close('all')
 fig = plt.figure()
-zmap = cm.get_cmap('Greens_r')
-smap = cm.get_cmap('Greys')
+zmap = mpl.colormaps['Greens_r']
+smap = mpl.colormaps['Greys']
 N = len(Extents)
 #N = 1
 Nsqrt = int(np.ceil(np.sqrt(N)))
@@ -569,7 +578,7 @@ for i in range(N):
 #plt.close(fig)
 
 
-# In[584]:
+# In[9]:
 
 
 ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
@@ -582,7 +591,7 @@ ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
 #                     ALL_Routes[5][i])
 
 
-# In[718]:
+# In[10]:
 
 
 citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
@@ -806,6 +815,7 @@ citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
             ['Appleton', 'Bay City'],
             ['Oshkosh-Neenah', 'Bay City'],
             ['Salisbury', 'Ocean City'],
+            ['Grand Rapids-Kentwood', 'Dubuque'],
             ['New Bern','California-Lexington Park']
 #           ["San Diego-Chula Vista-Carlsbad","El Centro"],#
 #           ["San Diego-Chula Vista-Carlsbad","Yuma"],#
@@ -832,10 +842,10 @@ print(w_matrix_ALL.shape,len(ALL_Routes.index))
 print(Dry_weights.shape,len(Dry_Routes.index))
 
 
-# In[843]:
+# In[11]:
 
 
-dr0 = 2.0
+dr0 = 2
 Trimmed_Routes, Trimmed_weights, dr_matrix = TrimRoutes(Cities,
                                              Routes=Dry_Routes,
                                              weights=Dry_weights,
@@ -881,7 +891,7 @@ for i,row in Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Wei
 #Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Weight"]>.5*Wmax)]
 
 
-# In[844]:
+# In[12]:
 
 
 #print(Trimmed_Routes[0])
@@ -893,22 +903,22 @@ for q in np.arange(0,1+dq,dq):
         str(q*100)+"%")
 
 
-# In[847]:
+# In[47]:
 
 
 #weightlimit = np.quantile(Trimmed_Routes[0],.000)
 weightlimit = 0.0
-#weightlimit = 55000.0
+weightlimit = 46000
 if weightlimit>np.min(Trimmed_Routes["Weight"]):
     Routeids = Trimmed_Routes.index[Trimmed_Routes["Weight"]<weightlimit].values
-    Routes = Trimmed_Routes[Trimmed_Routes["Weight"]>weightlimit]
+    #Routes = Trimmed_Routes[Trimmed_Routes["Weight"]>weightlimit]
     weights = Trimmed_weights*1
 #    for Routeid in Routeids:
 #        i = Trimmed_Routes["Large Index"][Routeid]
 #        j = Trimmed_Routes["Small Index"][Routeid]
 #        weights[i,j] = 0
 #        weights[j,i] = 0
-    print(Routeids)
+    print(Routeids,len(Routeids))
     Routes, weights, dr_matrix = RemoveRoutes(Cities,
                                        w_matrix=weights,
                                        dr_matrix=dr_matrix,
@@ -926,18 +936,18 @@ print(len(Trimmed_Routes.index),"-",len(Routeids))
 print(weights.shape,len(Routes.index))
 
 
-# In[848]:
+# In[48]:
 
 
 plt.close('all')
 Connections = np.sum(np.sign(weights), axis = 1)
 maxweight = np.max(Routes["Weight"])
 minweight = np.min(Routes["Weight"])
-cmap = cm.get_cmap('tab20b') #routes
+cmap = mpl.colormaps['tab20b'] #routes
 gamma = 1/2.0
-smap = cm.get_cmap('autumn') #cities
-zmap = cm.get_cmap('binary') #Elevation
-ymap = cm.get_cmap('YlGn_r') # Alt Elevation
+smap = mpl.colormaps['autumn'] #cities
+zmap = mpl.colormaps['binary'] #Elevation
+ymap = mpl.colormaps['YlGn_r'] # Alt Elevation
 N_cities = len(Cities)
 maxpop = np.nanmax(Cities["City Pop"][Connections>0])
 minpop = np.nanmin(Cities["City Pop"][Connections>0])
@@ -967,8 +977,9 @@ ax.tick_params(
 
 cax = fig.add_axes((.025,.025,.025,.95))
 # put map features in the background of each plot
-XX,YY = np.meshgrid(X,Y)
+YY,XX = np.meshgrid(Y,X)
 ZZ = 0*XX
+#print(X.shape,Y.shape,estd.shape,ZZ.shape)
 ZZ = np.maximum(estd,ZZ)
 ZZ = np.maximum(slope,ZZ)
 #ZZ = np.maximum(elev,ZZ)
@@ -1000,7 +1011,7 @@ for i in range(N_cities):
                        transform=XYproj,
                        zorder=4)
         cityfont = np.max([City_size*10,8])
-        if City_prominence>64:
+        if City_prominence>96:
                 citytext = Cities.iloc[i]["Cities"].split("-")[0].split("/")[0]
                 citytext = citytext.replace(" ","\n")
                 cityxy = (Cities.iloc[i]["Lon"], Cities.iloc[i]["Lat"])
@@ -1010,7 +1021,7 @@ for i in range(N_cities):
                     ha="center", va="center",
                     rotation = 0,
                     fontsize = cityfont,
-                    bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.5),edgecolor=None,lw=0),
+                    bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.75),edgecolor=None,lw=0),
                     annotation_clip=True,
                     zorder=5)
 for idx, route in Routes.iterrows():
@@ -1019,7 +1030,8 @@ for idx, route in Routes.iterrows():
             k = route[3]
             l = route[4]
             locs = np.vstack((Cities.iloc[k][["Lon","Lat"]].values,Cities.iloc[l][["Lon","Lat"]].values))
-            lw = 8
+            lw = 1+13*np.log(weight/minweight)/np.log(maxweight/minweight)
+            lw = 1+13*(weight/maxweight)**.875
             # Draw the lines on all the subplots
 #            color_value = np.log(weight/minweight)/np.log(maxweight/minweight)
 #            color_value = (weight)/(maxweight)
@@ -1067,7 +1079,7 @@ print("Done")
 plt.close(fig)
 
 
-# In[723]:
+# In[76]:
 
 
 #Trimmed_Routes[(Trimmed_Routes["Large City"]=="Salisbury")|(Trimmed_Routes["Small City"]=="Salisbury")]
@@ -1079,69 +1091,59 @@ for i in Routes.index:
     print("['"+Routes["Large City"][i]+"', '"+Routes["Small City"][i]+"'],")
 
 
-# In[253]:
+# In[77]:
 
 
-plt.plot((sorted(Trimmed_Routes["Weight"])/np.max(Trimmed_Routes["Weight"])))
+Routes.hist(column="Weight",bins=9)
 
 
-# In[834]:
-
-
-fig = plt.figure()
-#proj = ccrs.Orthographic(
-#        central_longitude=np.mean(CONUS_Extent[0:2]), 
-#        central_latitude=np.mean(CONUS_Extent[2:4]), 
-#        globe=None)
-ax = fig.add_axes((0.0,0.0,1.0,1.0), projection=proj)
-xycords = ccrs.PlateCarree()._as_mpl_transform(ax)
-xytransform = ccrs.PlateCarree()
-ax.margins(tight=True)
-smap = cm.get_cmap('tab20b') #cities
-ymap = cm.get_cmap('YlGn_r') # Alt Elevation
-zmap = cm.get_cmap('binary') # Alt Elevation
-Pmax = Cities.sort_values(by="Prominence",ascending=False)["Prominence"][1]
-Pmin = Cities.sort_values(by="Prominence",ascending=True)["Prominence"][0]
-XX,YY = np.meshgrid(X,Y)
-ZZ = 0*XX
-ZZ = np.maximum(estd,ZZ)
-ZZ = np.maximum(slope,ZZ)
-zlevels = np.geomspace(2**(-6),1,7)
-ax.contourf(XX,YY,ZZ,transform=XYproj,zorder=0,cmap=zmap,transform_first=True,levels=zlevels)
-ax.add_feature(cfeature.COASTLINE,linewidth=1,zorder=0,edgecolor="darkgrey")
-ax.add_feature(cfeature.STATES,linewidth=1,zorder=0,edgecolor="grey")    
-maxpop = Cities["City Pop"].max()
-for index,dest in Cities.iterrows():
-    if dest["Prominence"]<np.infty:
-        color = smap(dest["Pop percentile"])
-        sources = Cities[Cities["Larger Area"]==dest["United States"]]
-        plt.scatter([dest["Lon"]],
-            [dest["Lat"]],
-            color=color,
-            s=256*np.power(dest["City Pop"]/maxpop,.5),
-            transform=GCproj)
-        for jdex, source in sources.iterrows():
-#        print(dest["city, st"]+" to "+source["city, st"])
-            plt.plot(
-                [source["Lon"],dest["Lon"]],
-                [source["Lat"],dest["Lat"]],
-                color=color,
-                lw=8,
-                solid_capstyle="round",
-                transform=GCproj)
+# In[ ]:
 
 
 
-# In[830]:
+
+
+# In[ ]:
+
+
+
+
+
+# In[36]:
+
+
+pd.set_option('display.max_rows', 30)
+Cities[(Cities["City Pop"]>2e6)*(Cities["City Pop"]<6e6)][["city, st","City Pop"]]
+
+
+# In[ ]:
+
+
+Cities[Cities["City Pop"]>300000].hist(column="City Pop",bins=np.arange(0,2e7,0.25e6))
+
+
+# In[ ]:
 
 
 Cities
 
 
-# In[816]:
+# In[ ]:
 
 
-np.pow(4,2)
+np.arange(0,10,4)
+
+
+# In[64]:
+
+
+np.sqrt(2)
+
+
+# In[42]:
+
+
+Dry_Routes[(Dry_Routes["Distance"]<120)*(Dry_Routes["Small Index"]<60)]
 
 
 # In[ ]:
