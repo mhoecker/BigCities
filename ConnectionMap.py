@@ -34,11 +34,13 @@ plt.plot(1)
 plt.close('all')
 plt.rcParams['lines.markersize'] = 5
 plt.rcParams["figure.figsize"] = (32,16)
-plt.rcParams["font.size"] = 14
+plt.rcParams["font.size"] = 16
 plt.rcParams['savefig.bbox']="tight"
 plt.rcParams['savefig.facecolor']="white"
 plt.plot(1)
 plt.close('all')
+
+#NotebookApp.iopub_msg_rate_limit=2000.0
 
 tiler = Stamen('watercolor')
 tiler = Stamen('terrain-background')
@@ -57,23 +59,24 @@ def traveltime(distance,speed=100.0,wait=0.0):
     return wait*1.0+distance*1.0/speed
 
 # Function to caculate time saved between rail as compared to car or air
-# Assume a car leaves instantly at 30 kph
-# Assume a train departs after 30 min at 290 kph
-# Assume aircraft departs after 2 hours at 500 kph
-def timesaved(distance,rail_speed=290,rail_wait=1.0/2.0,air_speed=800,air_wait=2.0,car_speed=120):
+# Assume a car leaves instantly at 100 kph
+# Assume a train departs after 30 min at 200 kph
+# Assume aircraft departs after 2 hours at 800 kph
+def timesaved(distance,rail_speed=200,rail_wait=1.0/2.0,air_speed=450,air_wait=1.5,car_speed=100):
     A = traveltime(distance,speed=air_speed,wait=air_wait)
     C = traveltime(distance,speed=car_speed,wait=0)
     T = traveltime(distance,speed=rail_speed,wait=rail_wait)
     CT = (C-T)
     AT = (A-T)
     AC = (A-C)
-    # air_wait + dac/air_speed = dac/car_speed
+    # dac/car_speed = -air_wait +(dac/air_speed)
     dac = air_wait*air_speed*car_speed/(air_speed-car_speed)
     # dtac = dac/car_speed - rail_wait - dac/rail_speed
     dtac = dac/car_speed - rail_wait - dac/rail_speed
-    dt = np.minimum(AT,CT)
-    dt = np.maximum(dt,np.sign(AC)*dtac*distance/dac)
-    dt = np.maximum(dt,0*dt)
+    dt = (CT>0)*(AT>0)*AT
+    dt = (AT>0)*AT
+    #dt = np.maximum(dt,np.sign(AC)*dtac*distance/dac)
+    #dt = np.maximum(dt,0*dt)
     return dt
 
 def Vcos(A,B,C):    
@@ -91,23 +94,7 @@ def km_to_mi(km):
 def mi_to_km(mi):
     return mi*1.60934
 
-# Given lattitude and longitude calculate the great circle distance
-def SimpleGreatCircle(
-    lon1,
-    lat1,
-    lon2,
-    lat2,
-    R=6371):
-    if (lat1!=lat2) or (lon1!=lon2):
-        lat1r = np.pi*lat1/180.
-        lon1r = np.pi*lon1/180.
-        lat2r = np.pi*lat2/180.
-        lon2r = np.pi*lon2/180.
-        dr = np.arccos( np.sin(lat1r)*np.sin(lat2r)+np.cos(lat1r)*np.cos(lat2r)*np.cos(lon1r-lon2r) )*R
-        dr = np.abs(dr)
-    else:
-        dr = 0
-    return dr
+
     
 
 # for each city in the list do the distance calculation 
@@ -371,10 +358,11 @@ def remove_route(Routes,
 # In[4]:
 
 
-x = np.arange(1,1200,1)
+x = np.arange(1,700,1)
 fig = plt.figure()
 ax = fig.add_subplot(1,1,1)
-ax.plot(x,gravitymodel(1.0,1.0,x))
+ax.plot(x,timesaved(x))
+#ax.plot(x,gravitymodel(1.0,1.0,x))
 #ax.semilogx(x,gravitymodel(1.0,1.0,x,1))
 ax2 = ax.twiny()
 miles = np.arange(0,km_to_mi(x.max()),50)
@@ -507,7 +495,7 @@ print(CONUS_Aspect,1/CONUS_Aspect)
 #SE_Extent =       [ -85.0,  -65.0, 25.0, 37.0]
 Extents = [CONUS_Extent]
 files = ["CONUS.png"]
-Ny = 2
+Ny = 3
 Nx = int(np.rint(Ny*CONUS_Aspect))
 dx = np.abs(CONUS_Extent[1]-CONUS_Extent[0])/Nx
 dy = np.abs(CONUS_Extent[3]-CONUS_Extent[2])*1.0/Ny
@@ -520,13 +508,13 @@ for i in range(Nx):
                 CONUS_Extent[2]+j*dy,
                 CONUS_Extent[2]+(j+1.0)*dy])
         if i>0:
-            extent[0] = extent[0]-0.25*dx*(Nx-1.0)/Nx
+            extent[0] = extent[0]-0.125*dx*(Nx-1.0)/Nx
         if i+1<Nx:
-            extent[1] = extent[1]+0.25*dx*(Nx-1.0)/Nx
+            extent[1] = extent[1]+0.125*dx*(Nx-1.0)/Nx
         if j>0:
-            extent[2] = extent[2]-0.25*dy*(Ny-1.0)/Ny
+            extent[2] = extent[2]-0.125*dy*(Ny-1.0)/Ny
         if j+1<Ny:
-            extent[3] = extent[3]+0.25*dy*(Ny-1.0)/Ny
+            extent[3] = extent[3]+0.125*dy*(Ny-1.0)/Ny
 #        print(i,j,extent)
         Extents.append(extent)
         files.append(str(i).zfill(2)+"-"+str(j).zfill(2)+".png")
@@ -581,7 +569,7 @@ for i in range(N):
 # In[9]:
 
 
-ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
+ALL_Routes, ALL_weights, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
 #for i in range(len(ALL_Routes[1])):
 #               print(i,
 #                     ALL_Routes[1][i],",",
@@ -594,7 +582,8 @@ ALL_Routes, w_matrix_ALL, dr_matrix = makeRoutes(Cities,dr_matrix=dr_matrix)
 # In[10]:
 
 
-citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
+def RemoveWater(ALL_Routes, ALL_weights, dr_matrix):
+    citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
             ['Washington-Arlington-Alexandria','Atlantic City-Hammonton'],
             ["Milwaukee-Waukesha","Grand Rapids-Kentwood"],
             ["Grand Rapids-Kentwood","Appleton"],
@@ -602,10 +591,11 @@ citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
             ["Grand Rapids-Kentwood","Racine"],
             ["Janesville-Beloit","Grand Rapids-Kentwood"],
             ["Monroe","Appleton"],
+            ["Flint","Appleton"],
             ["Monroe","Racine"],
             ["Monroe","Erie"],
             ["Cleveland-Elyria" , "Monroe"],
-            ["San Francisco-Oakland-Berkeley","Vallejo"],
+            #["San Francisco-Oakland-Berkeley","Vallejo"],
             ["San Francisco-Oakland-Berkeley","Napa"],
             ["San Francisco-Oakland-Berkeley","Santa Rosa-Petaluma"],
             ["Detroit-Warren-Dearborn","Erie"],
@@ -816,36 +806,45 @@ citypairs =[["Detroit-Warren-Dearborn","Cleveland-Elyria"],
             ['Oshkosh-Neenah', 'Bay City'],
             ['Salisbury', 'Ocean City'],
             ['Grand Rapids-Kentwood', 'Dubuque'],
-            ['New Bern','California-Lexington Park']
-#           ["San Diego-Chula Vista-Carlsbad","El Centro"],#
-#           ["San Diego-Chula Vista-Carlsbad","Yuma"],#
-#           ["Phoenix-Mesa-Chandler","San Diego-Chula Vista-Carlsbad"],#
-#           ["San Diego-Chula Vista-Carlsbad","Prescott Valley-Prescott"],#
+            ['New Bern','California-Lexington Park'],
+            ["Fond du Lac","Flint"],
+            ["Oshkosh-Neenah","Flint"],
+           ["San Diego-Chula Vista-Carlsbad","El Centro"],#
+           ["San Diego-Chula Vista-Carlsbad","Yuma"],#
+           ["Phoenix-Mesa-Chandler","San Diego-Chula Vista-Carlsbad"],#
+           ["San Diego-Chula Vista-Carlsbad","Prescott Valley-Prescott"],#
 #           ["Phoenix-Mesa-Chandler","Riverside-San Bernardino-Ontario"]#
            ]
-Routeids =[]
-iswet = ALL_Routes["Weight"]<0
-for citypair in citypairs:
-    iswet = iswet|(ALL_Routes["Large City"]==citypair[0])&(ALL_Routes["Small City"]==citypair[1])
-    iswet = iswet|(ALL_Routes["Large City"]==citypair[1])&(ALL_Routes["Small City"]==citypair[0])
-Routeids = ALL_Routes.index[iswet].values
+    Routeids =[]
+    iswet = ALL_Routes["Weight"]<0
+    for citypair in citypairs:
+        iswet = iswet|(ALL_Routes["Large City"]==citypair[0])&(ALL_Routes["Small City"]==citypair[1])
+        iswet = iswet|(ALL_Routes["Large City"]==citypair[1])&(ALL_Routes["Small City"]==citypair[0])
+    Routeids = ALL_Routes.index[iswet].values
 #for i,row in ALL_Routes[iswet].iterrows():
 #    print(row.values)
-print(w_matrix_ALL.shape,len(ALL_Routes.index),"-",len(Routeids))
-Dry_Routes, Dry_weights, dr_matrix = RemoveRoutes(Cities,
-                                       w_matrix=w_matrix_ALL,
+#    print(ALL_weights.shape,len(ALL_Routes.index),"-",len(Routeids))
+    Dry_Routes, Dry_weights, dr_matrix = RemoveRoutes(Cities,
+                                       w_matrix=ALL_weights,
                                        dr_matrix=dr_matrix,
                                        Routes=ALL_Routes,
                                        Routeids=Routeids,
                                        verbose=False)
-print(w_matrix_ALL.shape,len(ALL_Routes.index))
-print(Dry_weights.shape,len(Dry_Routes.index))
+    return Dry_Routes, Dry_weights, dr_matrix
 
 
 # In[11]:
 
 
-dr0 = 2
+print(ALL_weights.shape,len(ALL_Routes.index))
+Dry_Routes, Dry_weights, dr_matrix = RemoveWater(ALL_Routes, ALL_weights, dr_matrix)
+print(Dry_weights.shape,len(Dry_Routes.index))
+
+
+# In[23]:
+
+
+dr0 = 1.75
 Trimmed_Routes, Trimmed_weights, dr_matrix = TrimRoutes(Cities,
                                              Routes=Dry_Routes,
                                              weights=Dry_weights,
@@ -853,7 +852,7 @@ Trimmed_Routes, Trimmed_weights, dr_matrix = TrimRoutes(Cities,
                                              dr0=dr0,
                                              useweights=2,
                                              very_verbose=False)
-print(w_matrix_ALL.shape,len(ALL_Routes.index))
+print(ALL_weights.shape,len(ALL_Routes.index))
 print(Dry_weights.shape,len(Dry_Routes.index))
 print(Trimmed_weights.shape,len(Trimmed_Routes.index))
 Wmax = np.floor(np.quantile(Trimmed_Routes["Weight"],.25))
@@ -891,56 +890,90 @@ for i,row in Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Wei
 #Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)&(Trimmed_Routes["Weight"]>.5*Wmax)]
 
 
-# In[12]:
+# In[24]:
 
 
+# Find the minimum spanning tree of the distance matrix
+tree = np.sign(Trimmed_weights)/(1+Trimmed_weights)
+mst = sp.sparse.csgraph.minimum_spanning_tree(tree)
+minroutes = np.sign(mst.toarray()+mst.toarray().T)
+minwt = Trimmed_weights*minroutes
+missingwt = Trimmed_weights- minwt
+Routeids = []
+for i in range(len(missingwt[0,:])):
+    for j in np.arange(i,len(missingwt[0,:])):
+            if missingwt[i,j]>0:
+                routeTF = (Trimmed_Routes["Large Index"]==i)*(Trimmed_Routes["Small Index"]==j)
+                Routeids.append(Trimmed_Routes[routeTF].index[0])
+                #print(i,j,missingwt[i,j],Routeids[-1])
+span_Routes, span_weights, dr_matrix = RemoveRoutes(Cities,
+                                       w_matrix=Trimmed_weights,
+                                       dr_matrix=dr_matrix,
+                                       Routes=Trimmed_Routes,
+                                       Routeids=Routeids,
+                                       verbose=False)
+
+
+# In[25]:
+
+
+min_Routes = Trimmed_Routes 
+min_weights = Trimmed_weights
+#min_Routes = span_Routes 
+#min_weights = span_weights
 #print(Trimmed_Routes[0])
 dq=.0625
 for q in np.arange(0,1+dq,dq):
     print(
         np.floor(np.quantile(Dry_Routes["Weight"],q)),
         np.floor(np.quantile(Trimmed_Routes["Weight"],q)),
+        np.floor(np.quantile(span_Routes["Weight"],q)),
+        np.floor(np.quantile(min_Routes["Weight"],q)),
         str(q*100)+"%")
 
 
-# In[47]:
+# In[28]:
 
 
 #weightlimit = np.quantile(Trimmed_Routes[0],.000)
-weightlimit = 0.0
-weightlimit = 46000
-if weightlimit>np.min(Trimmed_Routes["Weight"]):
-    Routeids = Trimmed_Routes.index[Trimmed_Routes["Weight"]<weightlimit].values
-    #Routes = Trimmed_Routes[Trimmed_Routes["Weight"]>weightlimit]
-    weights = Trimmed_weights*1
-#    for Routeid in Routeids:
-#        i = Trimmed_Routes["Large Index"][Routeid]
-#        j = Trimmed_Routes["Small Index"][Routeid]
-#        weights[i,j] = 0
-#        weights[j,i] = 0
+weightlimit = 15000.0
+if weightlimit>np.min(min_Routes["Weight"]):
+    Routeids = min_Routes.index[min_Routes["Weight"]<weightlimit].values
     print(Routeids,len(Routeids))
     Routes, weights, dr_matrix = RemoveRoutes(Cities,
-                                       w_matrix=weights,
+                                       w_matrix=min_weights,
                                        dr_matrix=dr_matrix,
-                                       Routes=Trimmed_Routes,
+                                       Routes=min_Routes,
                                        Routeids=Routeids,
                                        verbose=False)
 else:
     Routeids = []
-    weights = Trimmed_weights*1
-    Routes = Trimmed_Routes
-print(w_matrix_ALL.shape,len(ALL_Routes.index))
+    weights = min_weights*1
+    Routes = min_Routes
+print(ALL_weights.shape,len(ALL_Routes.index))
 print(Dry_weights.shape,len(Dry_Routes.index))
 print(Trimmed_weights.shape,len(Trimmed_Routes.index))
-print(len(Trimmed_Routes.index),"-",len(Routeids))
+print(span_weights.shape,len(span_Routes.index))
+print(min_weights.shape,len(min_Routes.index))
+print(len(min_Routes.index),"-",len(Routeids))
 print(weights.shape,len(Routes.index))
+#print(Trimmed_Routes[0])
+dq=.0625
+for q in np.arange(0,1+dq,dq):
+    print(
+        np.floor(np.quantile(Dry_Routes["Weight"],q)),
+        np.floor(np.quantile(Trimmed_Routes["Weight"],q)),
+        np.floor(np.quantile(span_Routes["Weight"],q)),
+        np.floor(np.quantile(min_Routes["Weight"],q)),
+        np.floor(np.quantile(Routes["Weight"],q)),
+        str(q*100)+"%")
 
 
-# In[48]:
+# In[29]:
 
 
 plt.close('all')
-Connections = np.sum(np.sign(weights), axis = 1)
+Connections = np.sum(np.sign(weights), axis = 0)
 maxweight = np.max(Routes["Weight"])
 minweight = np.min(Routes["Weight"])
 cmap = mpl.colormaps['tab20b'] #routes
@@ -1010,9 +1043,10 @@ for i in range(N_cities):
                        #alpha=.625,
                        transform=XYproj,
                        zorder=4)
-        cityfont = np.max([City_size*10,8])
-        if City_prominence>96:
+        cityfont = np.max([np.power(City_size,.1)*10,7])
+        if City_prominence>64:
                 citytext = Cities.iloc[i]["Cities"].split("-")[0].split("/")[0]
+                #print(citytext)
                 citytext = citytext.replace(" ","\n")
                 cityxy = (Cities.iloc[i]["Lon"], Cities.iloc[i]["Lat"])
                 ax.annotate(xy=cityxy,
@@ -1021,7 +1055,7 @@ for i in range(N_cities):
                     ha="center", va="center",
                     rotation = 0,
                     fontsize = cityfont,
-                    bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.75),edgecolor=None,lw=0),
+                    bbox = dict(boxstyle="round",pad=0, fc=(1,1,1,0.5),edgecolor=None,lw=0),
                     annotation_clip=True,
                     zorder=5)
 for idx, route in Routes.iterrows():
@@ -1079,75 +1113,8 @@ print("Done")
 plt.close(fig)
 
 
-# In[76]:
-
-
-#Trimmed_Routes[(Trimmed_Routes["Large City"]=="Salisbury")|(Trimmed_Routes["Small City"]=="Salisbury")]
-#Dry_Routes[((Dry_Routes["Large City"]=="Salisbury")|(Dry_Routes["Small City"]=="Salisbury"))&(Dry_Routes["Distance"]>1000)]
-#ALL_Routes[(ALL_Routes["Large City"]=="Salisbury")|(ALL_Routes["Small City"]=="Salisbury")]
-#Wmax = 40000
-#Trimmed_Routes[(Trimmed_Routes["Weight"]<Wmax)]
-for i in Routes.index:
-    print("['"+Routes["Large City"][i]+"', '"+Routes["Small City"][i]+"'],")
-
-
-# In[77]:
+# In[22]:
 
 
 Routes.hist(column="Weight",bins=9)
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[36]:
-
-
-pd.set_option('display.max_rows', 30)
-Cities[(Cities["City Pop"]>2e6)*(Cities["City Pop"]<6e6)][["city, st","City Pop"]]
-
-
-# In[ ]:
-
-
-Cities[Cities["City Pop"]>300000].hist(column="City Pop",bins=np.arange(0,2e7,0.25e6))
-
-
-# In[ ]:
-
-
-Cities
-
-
-# In[ ]:
-
-
-np.arange(0,10,4)
-
-
-# In[64]:
-
-
-np.sqrt(2)
-
-
-# In[42]:
-
-
-Dry_Routes[(Dry_Routes["Distance"]<120)*(Dry_Routes["Small Index"]<60)]
-
-
-# In[ ]:
-
-
-
 
